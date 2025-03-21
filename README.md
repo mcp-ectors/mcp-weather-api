@@ -1,7 +1,7 @@
 
 # Weather API Router MCP
 
-This project (SOON!!!) defines a Weather API Router as an MCP (Microservice Component Protocol) packaged as a WASM module. The router provides weather data and supports various functionalities such as fetching weather data, reading resources, and handling prompts.
+This project (SOON!!!) defines a Weather API Router as an MCP (Model Context Protocol) packaged as a WASM module. The router provides weather data and supports various functionalities such as fetching weather data, reading resources, and handling prompts.
 
 The MCP router is built using the `wasix:mcp.router@0.0.1` standard, allowing it to interact with a WebAssembly runtime using the WASI-P2 (WASI 2.0) interface.
 
