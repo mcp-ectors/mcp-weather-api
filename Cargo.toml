@@ -1,6 +1,10 @@
 [package]
 name = "mcp-weather-api"
-version = "0.1.0"
+version = "0.0.1"
+description = "An MCP for the Weather API which implements the wasix-mcp.router component interface."
+authors = ["Maarten Ectors <maarten@ectors.com>"]
+license = "MIT"
+readme = "README.md" 
 edition = "2021"
 
 [dependencies]
