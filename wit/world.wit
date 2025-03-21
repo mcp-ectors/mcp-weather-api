@@ -1,0 +1,178 @@
+package wasix:mcp@0.0.1;
+
+interface router {
+
+  // Define custom types (records) based on Rust structs
+  record value {
+    key: string,
+    data: string
+  }
+
+  record tool {
+    name: string,
+    description: string,
+    input-schema: value
+  }
+
+  // Prompts capability (list_changed field)
+  record prompts-capability {
+    list-changed: option<bool>,
+  }
+
+  // Resources capability (subscribe and list_changed fields)
+  record resources-capability {
+    subscribe: option<bool>,
+    list-changed: option<bool>,
+  }
+
+  // Tools capability (list_changed field)
+  record tools-capability {
+    list-changed: option<bool>,
+  }
+
+  record server-capabilities {
+    prompts: option<prompts-capability>,
+    resources: option<resources-capability>,
+    tools: option<tools-capability>,
+  }
+
+  record call-tool-result {
+    content: list<content>,
+    is-error: option<bool>
+  }
+
+  variant content {
+    text(text-content),
+    image(image-content),
+    embedded(embedded-resource)
+  }
+
+  record text-content {
+    text: string,
+    annotations: option<annotations>
+  }
+
+  record image-content {
+    data: string,
+    mime-type: string,
+    annotations: option<annotations>
+  }
+
+  record embedded-resource {
+    resource-contents: resource-contents,
+    annotations: option<annotations>
+  }
+
+  record mcp-resource {
+    uri: string,
+    name: string,
+    description: option<string>,
+    mime-type: string,
+    annotations: option<annotations>
+  }
+
+  record text-resource-contents {
+    uri: string,
+    mime-type: option<string>,
+    text: string
+  }
+
+  record blob-resource-contents {
+    uri: string,
+    mime-type: option<string>,
+    blob: string
+  }
+
+  variant resource-contents {
+    text(text-resource-contents),
+    blob(blob-resource-contents)
+  }
+
+
+  record read-resource-result {
+    contents: list<resource-contents>
+  }
+
+  record annotations {
+    audience: option<list<role>>,
+    priority: option<f32>,
+    timestamp: option<datetime>
+  }
+
+  enum role {
+    user,
+    assistant
+  }
+
+  type datetime = string;  // Define as string for UTC datetime
+
+  // Errors
+  variant tool-error {
+    invalid-parameters(string),
+    execution-error(string),
+    schema-error(string),
+    not-found(string)
+  }
+
+  variant resource-error {
+    execution-error(string),
+    not-found(string)
+  }
+
+
+  variant prompt-error {
+    invalid-parameters(string),
+    internal-error(string),
+    not-found(string)
+  }
+
+
+  record prompt {
+    name: string,
+    description: option<string>,
+    arguments: option<list<prompt-argument>>
+  }
+
+  record prompt-argument {
+    name: string,
+    description: option<string>,
+    required: option<bool>
+  }
+
+  record get-prompt-result {
+    description: option<string>,
+    messages: list<prompt-message>
+  }
+
+  record prompt-message {
+    role: prompt-message-role,
+    content: prompt-message-content
+  }
+
+  enum prompt-message-role {
+    user,
+    assistant
+  }
+
+  variant prompt-message-content {
+    text(text-content),
+    image(image-content),
+    mcp-resource(embedded-resource)
+  }
+
+
+  name: func() -> string;
+  instructions: func() -> string;
+  capabilities: func() -> server-capabilities;
+  list-tools: func() -> list<tool>;
+  call-tool: func(tool-name: string, arguments: value) -> result<call-tool-result, tool-error>;
+  list-resources: func() -> list<mcp-resource>;
+  read-resource: func(uri: string) -> result<read-resource-result, resource-error>;
+  list-prompts: func() -> list<prompt>;
+  get-prompt: func(prompt-name: string) -> result<get-prompt-result, resource-error>;
+}
+
+world mcp {
+  // Exporting the router interface as part of the world
+  export router;
+}

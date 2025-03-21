@@ -1,0 +1,14 @@
+[package]
+name = "mcp-weather-api"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+wit-bindgen = "0.41.0"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dev-dependencies]
+wasmtime = "31.0.0"
+wasmtime-wasi = "31.0.0"
