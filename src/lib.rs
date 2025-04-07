@@ -11,14 +11,9 @@ mod bindings {
 }
 
 use bindings::exports::wasix::mcp::{router::{self, Annotations, CallToolResult, Content::{self, Text}, GetPromptResult, Guest, McpResource, Prompt, PromptError, PromptMessage, PromptMessageContent, PromptMessageRole, ReadResourceResult, ResourceContents, ResourceError, Role, ServerCapabilities, TextContent, TextResourceContents, Tool, ToolError, Value}, secrets_list::{self, SecretsDescription}};
-use serde_json::{from_str,Value as JsonValue};
 use bindings::wasix::mcp::secrets_store::{get, reveal};
 use bindings::wasi::http::{outgoing_handler::handle,types::{Scheme,Fields,OutgoingRequest}};
-
-#[derive(serde::Deserialize)]
-struct WeatherResponse {
-    message: String,
-}
+use urlencoding::encode;
 
 struct WeatherAPIRouter;
 
@@ -93,31 +88,35 @@ impl Guest for WeatherAPIRouter{
     fn call_tool(tool_name: String, arguments: Value) -> Result<CallToolResult, ToolError> {
         // Handle calling the tool, returning the appropriate result
         if tool_name == "get_weather" {
-            let args: JsonValue = from_str(&arguments.json).expect(format!("Could not read the json arguments: {}",&arguments.json).as_str());
+
+            let args: serde_json::Value = serde_json::from_str(&arguments.json).expect(format!("Could not read the json arguments: {}",&arguments.json).as_str());
 
             let location = args
                 .get("location")
                 .and_then(|v| v.as_str())
                 .unwrap(); // Default location
-
+      
             if location.is_empty() {
                 return Ok(CallToolResult{ content: vec![Content::Text(TextContent{text:"you need to provide a location".to_string(),annotations:None})], is_error: Some(true) });
             }
 
             let weather_key = get(WEATHER_API_KEY);
             let secret = reveal(&weather_key.expect("Could not read WEATHER_API_KEY value"));
+  
+            let url = format!(
+                "/v1/current.json?key={}&q={}",
+                secret.secret.clone(), 
+                encode(location));
 
+
+    
             let req = OutgoingRequest::new(Fields::new());
             req.set_scheme(Some(&Scheme::Https)).unwrap();
             req.set_authority(Some("api.weatherapi.com")).unwrap();
-            req.set_path_with_query(Some(format!(
-                "/v1/current.json?key={}&q={}",
-                secret.secret, 
-                location).as_str()))
-                .unwrap();
-
+            req.set_path_with_query(Some(&url)).unwrap();
+   
             // Perform the API call to the weather api, expecting a URL to come back as the response body
-            let weather_req = match handle(req, None) {
+            return match handle(req, None) {
                 Ok(resp) => {
                     resp.subscribe().block();
                     let response = resp
@@ -125,42 +124,45 @@ impl Guest for WeatherAPIRouter{
                         .expect("HTTP request response missing")
                         .expect("HTTP request response requested more than once")
                         .expect("HTTP request failed");
+
                     if response.status() == 200 {
                         let response_body = response
                             .consume()
                             .expect("failed to get incoming request body");
-                        let mut body = Vec::new();
+                        let mut body = Vec::<u8>::new();
                         let stream = response_body
                             .stream()
                             .expect("failed to get HTTP request response stream");
-                        let chunk_size = 1024;
+             
+                        let chunk_size: u64= 1024;
                         loop {
-                            let chunk: Vec<u8> = stream.read(chunk_size).unwrap();
-                            if chunk.is_empty() {
+                            let bytes_read = stream.blocking_read(chunk_size).unwrap();
+                            if bytes_read.len() < chunk_size as usize {
+                                body.extend_from_slice(&bytes_read);
                                 break;
                             }
-                            body.extend_from_slice(&chunk);
+                            body.extend_from_slice(&bytes_read);
                         }
-                        //let _trailers = wasi::http::types::IncomingBody::finish(response_body);
-                        let weather_response: WeatherResponse = serde_json::from_slice(&body).unwrap();
-                        weather_response.message
+                        let text = String::from_utf8(body).expect("Invalid UTF-8");
+                       
+                        Ok(CallToolResult {
+                            content: vec![Text(TextContent {
+                                text: text,
+                                annotations: None,
+                            })],
+                            is_error: Some(false),
+                        })
+                        
                     } else {
-                        format!("HTTP request failed with status code {}", response.status())
-                    }
+                        Err(ToolError::ExecutionError(format!("HTTP request failed with status code {}", response.status())))
+                    }   
                 }
                 Err(e) => {
-                    format!("Got error when trying to fetch dog: {}", e)
+                    Err(ToolError::ExecutionError(format!("Got error when trying to fetch the weather: {}", e)))
                 }
+                
             };
 
-            // Example logic for calling the "WeatherFetcher" tool
-            Ok(CallToolResult {
-                content: vec![Text(TextContent {
-                    text: weather_req,
-                    annotations: None,
-                })],
-                is_error: Some(false),
-            })
         } else {
             Err(ToolError::NotFound(format!("Tool {} not found", tool_name)))
         }

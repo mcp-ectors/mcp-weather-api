@@ -3,6 +3,7 @@
 use std::env;
 use dotenv::dotenv;
 use exports::wasix::mcp::router::{Content, PromptMessageContent, Role, Value};
+use serde_json::json;
 use wasix::mcp;
 use wasix::mcp::secrets_store::{HostSecret, Secret, SecretValue, SecretsError};
 use wasmtime_wasi::{IoView, ResourceTable, WasiCtx, WasiCtxBuilder, WasiView};
@@ -45,7 +46,7 @@ impl WasiHttpView for MyState {
 impl mcp::secrets_store::Host for MyState{
     #[doc = " Gets a single opaque secrets value set at the given key if it exists"]
     fn get(&mut self,_key:wasmtime::component::__internal::String,) -> Result<Resource<Secret>,SecretsError> {
-            Ok(Resource::<Secret>::new_borrow(1))
+            Ok(Resource::<Secret>::new_own(1))
     }
 
     fn reveal(&mut self,_s:wasmtime::component::Resource<Secret>,) -> SecretValue {
@@ -104,9 +105,14 @@ fn test_weather_api_router() {
     assert_eq!(tools[0].name, "get_weather");
 
     // Test the 'call-tool' function
+    let location_json = json!({
+        "location": "New York"
+    });
+
     let value = Value {
-        json: "{'location':'New York'}".to_string(),
+        json: location_json.to_string(),
     };
+
     let tool_result = mcp.call_call_tool(&mut store, "get_weather", &value);
     let call_tool_result = tool_result.expect("expected a CallToolResult").expect("within another result");
     let contents = call_tool_result.content.clone();
