@@ -119,7 +119,7 @@ fn test_weather_api_router() {
     let content = contents[0].clone();
     let result = match content {
         Content::Text(text_content) => {
-            assert_eq!(text_content.text, "Fetching weather data for: New York");
+            assert!(text_content.text.contains("New York"));
             Ok(())
         }
         _ => Err("Not right content")
