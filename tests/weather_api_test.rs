@@ -1,19 +1,56 @@
 
 
+use std::env;
+use dotenv::dotenv;
 use exports::wasix::mcp::router::{Content, PromptMessageContent, Role, Value};
+use wasix::mcp;
+use wasix::mcp::secrets_store::{HostSecret, Secret, SecretValue, SecretsError};
 use wasmtime_wasi::{IoView, ResourceTable, WasiCtx, WasiCtxBuilder, WasiView};
 use wasmtime::{Config, Engine, Store};
-use wasmtime::component::{bindgen, Linker, Component};
+use wasmtime::component::{bindgen, Component, Linker, Resource};
+use wasmtime_wasi_http::{WasiHttpCtx, WasiHttpView};
+
+const INSTRUCTIONS: &str = "Fetches the current weather \n        for a given location. \n        Call the get_weather tool and pass a json {'location'='input your location here'}, \n        as input. Location can be in different formats:\n        * Latitude and Longitude (Decimal degree) e.g: location=48.8567,2.3508\n        * city name e.g.: location=Paris\n        * US zip e.g.: location=10001\n        * UK postcode e.g: location=SW1\n        * Canada postal code e.g: location=G2J\n        * metar:<metar code> e.g: location=metar:EGLL\n        * iata:<3 digit airport code> e.g: location=iata:DXB\n        * auto:ip IP lookup e.g: location=auto:ip\n        * IP address (IPv4 and IPv6 supported) e.g: location=100.0.0.1\n        * By ID returned from Search API. e.g: location=id:2801268";
 
 
 bindgen!({
-    world: "mcp",
+    world: "mcp-secrets",
 });
 
+#[derive(Debug, Clone, Copy)]
+struct SecretsStore {
+    weather_api_key: &'static str,
+}
 
 struct MyState {
+    secrets_store: SecretsStore,
     table: ResourceTable,
     ctx: WasiCtx,
+    http: WasiHttpCtx,
+}
+
+impl HostSecret for MyState{
+    fn drop(&mut self,_rep:wasmtime::component::Resource<Secret>) -> wasmtime::Result<()> {
+        self.secrets_store.weather_api_key = "";
+        Ok(())
+    }
+}
+
+impl WasiHttpView for MyState {
+    fn ctx(&mut self) -> &mut WasiHttpCtx {
+        &mut self.http
+    }
+}
+
+impl mcp::secrets_store::Host for MyState{
+    #[doc = " Gets a single opaque secrets value set at the given key if it exists"]
+    fn get(&mut self,_key:wasmtime::component::__internal::String,) -> Result<Resource<Secret>,SecretsError> {
+            Ok(Resource::<Secret>::new_borrow(1))
+    }
+
+    fn reveal(&mut self,_s:wasmtime::component::Resource<Secret>,) -> SecretValue {
+        SecretValue { secret: self.secrets_store.weather_api_key.to_string().clone() }
+    }
 }
 
 impl IoView for MyState {
@@ -23,27 +60,35 @@ impl WasiView for MyState {
     fn ctx(&mut self) -> &mut WasiCtx { &mut self.ctx }
 }
 
+
 #[test]
 fn test_weather_api_router() {
+    dotenv().ok();
     // Load the wasm file (ensure it's built first)
     let file = "target/wasm32-wasip2/debug/mcp_weather_api.wasm";
     let mut config = Config::default();
     config.async_support(false);
 
-
+    let weather_api_key = env::var("WEATHER_API_KEY").expect("WEATHER_API_KEY not set in .env");
+    let weather_api_key = Box::leak(weather_api_key.into_boxed_str());
+    let secrets_store = SecretsStore { weather_api_key };
     // Create a Wasmtime engine and store
     let engine = Engine::new(&config).unwrap();
     let wasi = WasiCtxBuilder::new().build();
     let state = MyState {
+        secrets_store,
         ctx: wasi,
+        http: WasiHttpCtx::new(),
         table: ResourceTable::new(),
     };
     let mut store = Store::new(&engine, state);
     let component = Component::from_file(&engine, file).unwrap();
     let mut linker = Linker::new(&engine);
     wasmtime_wasi::add_to_linker_sync(&mut linker).expect("wasi linker not added");
+    wasmtime_wasi_http::add_only_http_to_linker_async(&mut linker).expect("Could not add http to linker");
+    mcp::secrets_store::add_to_linker(&mut linker,  |state: &mut MyState| state).expect("Could not link secrets store");
 
-    let router = Mcp::instantiate(&mut store, &component, &linker);//.unwrap();
+    let router = McpSecrets::instantiate(&mut store, &component, &linker);//.unwrap();
     let router = match router {
         Ok(mcp) => mcp,
         Err(err) =>  {eprint!("Error: {:?}",err); Err(err).expect("error")}
@@ -53,18 +98,18 @@ fn test_weather_api_router() {
     let name = mcp.call_name(&mut store).unwrap();
     assert_eq!(name, "Weather API Router".to_string());
     let instructions = mcp.call_instructions(&mut store).unwrap();
-    assert_eq!(instructions, "This router provides weather data.".to_string());
+    assert_eq!(instructions, INSTRUCTIONS.to_string());
     let tools = mcp.call_list_tools(&mut store).unwrap();
     assert_eq!(tools.len(), 1);  // Assuming only 1 tool is added in the implementation
-    assert_eq!(tools[0].name, "WeatherFetcher");
+    assert_eq!(tools[0].name, "get_weather");
 
     // Test the 'call-tool' function
     let value = Value {
-        key: "location".to_string(),
-        data: "New York".to_string(),
+        json: "{'location':'New York'}".to_string(),
     };
-    let tool_result = mcp.call_call_tool(&mut store, "WeatherFetcher", &value).unwrap().unwrap();
-    let contents = tool_result.content.clone();
+    let tool_result = mcp.call_call_tool(&mut store, "get_weather", &value);
+    let call_tool_result = tool_result.expect("expected a CallToolResult").expect("within another result");
+    let contents = call_tool_result.content.clone();
     let content = contents[0].clone();
     let result = match content {
         Content::Text(text_content) => {
