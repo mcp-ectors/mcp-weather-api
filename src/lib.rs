@@ -79,7 +79,17 @@ impl Guest for WeatherAPIRouter{
                 * IP address (IPv4 and IPv6 supported) e.g: location=100.0.0.1
                 * By ID returned from Search API. e.g: location=id:2801268".to_string(),
                 input_schema: Value {
-                    json: "{'type': 'object',\n\t'properties': {\n\t\t'location': { 'type': 'string' }\n\t},\n\t'required': ['location']\n}\n".to_string(),
+                    json: r#"{
+                        "type": "object",
+                        "properties": {
+                            "location": {
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "location"
+                        ]
+                    }"#.to_string(),
                 },
             },
         ]
