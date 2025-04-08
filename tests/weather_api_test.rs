@@ -103,6 +103,21 @@ fn test_weather_api_router() {
     let tools = mcp.call_list_tools(&mut store).unwrap();
     assert_eq!(tools.len(), 1);  // Assuming only 1 tool is added in the implementation
     assert_eq!(tools[0].name, "get_weather");
+    let left: serde_json::Value = serde_json::from_str(&tools[0].input_schema.json)
+    .expect("failed to parse left JSON");
+    let right: serde_json::Value = serde_json::from_str(r#"{
+        "type": "object",
+        "properties": {
+            "location": {
+                "type": "string"
+            }
+        },
+        "required": [
+            "location"
+        ]
+    }"#)
+        .expect("failed to parse right JSON");
+    assert_eq!(left, right);
 
     // Test the 'call-tool' function
     let location_json = json!({
