@@ -1,16 +1,16 @@
 
-# Weather API Router MCP
+# Weather API Router MCP - The FIRST WASIX-MCP Connector - All 200KB of it!!!
 
-This project (SOON!!!) defines a Weather API Router as an MCP (Model Context Protocol) packaged as a WASM module. The router provides weather data and supports various functionalities such as fetching weather data, reading resources, and handling prompts.
+This project defines a Weather API Router as an MCP (Model Context Protocol) packaged as a WASM WASI module. The router provides weather data and supports various functionalities such as fetching weather data, reading resources, and handling prompts.
 
-The MCP router is built using the `wasix:mcp.router@0.0.1` standard, allowing it to interact with a WebAssembly runtime using the WASI-P2 (WASI 2.0) interface.
+The MCP router is built using the `wasix:mcp.router@0.0.2` standard, allowing it to interact with a WebAssembly runtime using the WASI-P2 (WASI 2.0) interface.
 
 ## Features
 
-- **Weather Data Fetching**: The router provides a tool (`WeatherFetcher`) to fetch weather data.
-- **Resource Management**: The router offers resources for weather data.
+- **Weather Data Fetching**: The router provides a tool (`get_weather`) to fetch weather data.
+- **Resource Management**: The router offers resources which could be extended to provide historical weather data.
 - **Prompts**: The router defines a prompt (`GetWeather`) to fetch weather information based on a location.
-- **WASM Support**: The router is packaged as a WASM module for seamless integration into a WASI runtime.
+- **WASM Support**: The router is packaged as a WASM32-WASIP2 module for seamless integration into a WASI runtime. Testing code shows you how to run it.
 
 ## Requirements
 
@@ -35,13 +35,15 @@ The MCP router is built using the `wasix:mcp.router@0.0.1` standard, allowing it
 
 3. Once the build is complete, the WASM module will be located in `target/wasm32-wasip2/debug/mcp_weather_api.wasm`.
 
-4. Build the WASM module for production with the following command [`target/wasm32-wasip2/release/mcp_weather_api.wasm`]:
+4. Build the 200K WASM module for production with the following command [`target/wasm32-wasip2/release/mcp_weather_api.wasm`]:
 
     ```bash
     cargo build --target wasm32-wasip2 --release
     ```
 
 ## Running Tests
+
+Copy the .env-sample into .env and go to [weatherapi.com](https://www.weatherapi.com/) to get your WEATHER_API_KEY.
 
 To ensure that the Weather API Router works correctly, you can run the tests:
 
@@ -51,9 +53,9 @@ cargo test
 
 The test will verify the router's functionalities including:
 
-- Fetching weather data with the `WeatherFetcher` tool.
-- Retrieving resources like weather data.
-- Handling prompts like `GetWeather`.
+- Fetching weather data with the `get_weather` tool.
+- Retrieving resources like weather data [demo only].
+- Handling prompts like `GetWeather` [demo only].
 
 ## MCP Router Functions
 
@@ -75,7 +77,7 @@ After building the WASM module, you can interact with it via a Wasmtime runtime.
 
 ```rust
 // Example usage of calling the Weather API Router from a WASI runtime:
-let router = Mcp::instantiate(&mut store, &component, &linker);
+let router = McpSecrets::instantiate(&mut store, &component, &linker);
 let tools = router.call_list_tools(&mut store).unwrap();
 ```
 
