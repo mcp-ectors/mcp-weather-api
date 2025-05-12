@@ -1,4 +1,4 @@
-package wasix:mcp@0.0.2;
+package wasix:mcp@0.0.5;
 
 interface router {
 
@@ -9,7 +9,8 @@ interface router {
   record tool {
     name: string,
     description: string,
-    input-schema: value, 
+    input-schema: value,
+    output-schema: option<value>, 
   }
 
   // Prompts capability (list_changed field)
@@ -233,7 +234,31 @@ interface secrets-store {
 world mcp-secrets {
   import secrets-store;
   import wasi:http/outgoing-handler@0.2.2;
+  import wasi:logging/logging@0.1.0-draft;
   // Exporting the router interface as part of the world
   export router;
   export secrets-list;
+}
+
+interface request-handler {
+  record value {
+    json: string,
+  }
+  variant request-error {
+    invalid-parameters(string),
+    internal-error(string),
+    not-found(string)
+  }
+  record request-result {
+    response: value,
+    is-error: option<bool>
+  }
+
+  run: func(tool-name: string, task: value) -> result<request-result, request-error>;
+}
+
+world agentic {
+  import router;
+  import secrets-store;
+  export request-handler;
 }

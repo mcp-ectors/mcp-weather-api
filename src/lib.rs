@@ -4,6 +4,7 @@ mod bindings {
     use crate::WeatherAPIRouter;
     wit_bindgen::generate!({ 
         generate_all,
+        world: "mcp-secrets"
      });
 
 
@@ -13,12 +14,14 @@ mod bindings {
 use bindings::exports::wasix::mcp::{router::{self, Annotations, CallToolResult, Content::{self, Text}, GetPromptResult, Guest, McpResource, Prompt, PromptError, PromptMessage, PromptMessageContent, PromptMessageRole, ReadResourceResult, ResourceContents, ResourceError, Role, ServerCapabilities, TextContent, TextResourceContents, Tool, ToolError, Value}, secrets_list::{self, SecretsDescription}};
 use bindings::wasix::mcp::secrets_store::{get, reveal};
 use bindings::wasi::http::{outgoing_handler::handle,types::{Scheme,Fields,OutgoingRequest}};
+use bindings::wasi::logging::logging;
 use urlencoding::encode;
 
 struct WeatherAPIRouter;
 
 impl secrets_list::Guest for WeatherAPIRouter {
     fn list_secrets() -> Vec::<SecretsDescription> {
+        logging::log(logging::Level::Info, "list_secrets", "called");
        vec![SecretsDescription{ 
         name: WEATHER_API_KEY.to_string(), 
         description: "the api key for weatherapi.com".to_string(), 
@@ -62,6 +65,7 @@ impl Guest for WeatherAPIRouter{
 
     // Implement the rest of the required methods...
     fn list_tools() -> Vec<Tool> {
+        logging::log(logging::Level::Info, "list_tools", "called");
         vec![
             Tool {
                 name: "get_weather".to_string(),
@@ -91,11 +95,88 @@ impl Guest for WeatherAPIRouter{
                         ]
                     }"#.to_string(),
                 },
-            },
-        ]
-    }
+                output_schema: Some(Value {
+                    json: r#"{
+                        "title": "Forecast",
+                        "type": "object",
+                        "properties": {
+                            "forecastday": {
+                                "title": "Forecastday",
+                                "anyOf": [
+                                    {
+                                        "type": "array",
+                                        "items": {
+                                            "$ref": "\#/$defs/ForecastForecastdayInner"
+                                        }
+                                    },
+                                    { "type": "null" }
+                                ]
+                            }
+                        },
+                        "required": ["forecastday"],
+                        "$defs": {
+                            "ForecastForecastdayInner": {
+                                "type": "object",
+                                "title": "ForecastForecastdayInner",
+                                "properties": {
+                                    "date": { "type": ["string", "null"] },
+                                    "date_epoch": { "type": ["integer", "null"] },
+                                    "day": {
+                                        "anyOf": [
+                                            { "$ref": "\#/$defs/ForecastForecastdayInnerDay" },
+                                            { "type": "null" }
+                                        ]
+                                    },
+                                    "astro": {
+                                        "anyOf": [
+                                            { "$ref": "\#/$defs/ForecastForecastdayInnerAstro" },
+                                            { "type": "null" }
+                                        ]
+                                    },
+                                    "hour": {
+                                        "anyOf": [
+                                            {
+                                                "type": "array",
+                                                "items": { "$ref": "\#/$defs/ForecastForecastdayInnerHourInner" }
+                                            },
+                                            { "type": "null" }
+                                        ]
+                                    }
+                                },
+                                "required": ["date", "date_epoch", "day", "astro", "hour"]
+                            },
+                            "ForecastForecastdayInnerDay": {
+                                "type": "object",
+                                "title": "ForecastForecastdayInnerDay",
+                                "properties": {
+                                    "maxtemp_c": { "type": ["number", "null"] },
+                                    "mintemp_c": { "type": ["number", "null"] },
+                                    "uv": { "type": ["integer", "null"] }
+                                }
+                            },
+                            "ForecastForecastdayInnerAstro": {
+                                "type": "object",
+                                "properties": {
+                                    "sunrise": { "type": ["string", "null"] },
+                                    "sunset": { "type": ["string", "null"] }
+                                }
+                            },
+                            "ForecastForecastdayInnerHourInner": {
+                                "type": "object",
+                                "properties": {
+                                    "time": { "type": ["string", "null"] },
+                                    "temp_c": { "type": ["number", "null"] },
+                                    "uv": { "type": ["integer", "null"] }
+                                }
+                            }
+                        }
+                    }"#.to_string(),
+                }),
+            }]
+        }
 
     fn call_tool(tool_name: String, arguments: Value) -> Result<CallToolResult, ToolError> {
+        logging::log(logging::Level::Info, "call_tool", format!("called: {} with args: {:?}",tool_name,arguments).as_str());
         // Handle calling the tool, returning the appropriate result
         if tool_name == "get_weather" {
 
@@ -179,6 +260,7 @@ impl Guest for WeatherAPIRouter{
     }
 
     fn list_resources() -> Vec<McpResource> {
+        logging::log(logging::Level::Info, "list_resources", "all resources returned");
         vec![
             McpResource {
                 uri: "weather-data-uri".to_string(),
@@ -192,6 +274,7 @@ impl Guest for WeatherAPIRouter{
     }
 
     fn read_resource(uri: String) -> Result<ReadResourceResult, ResourceError> {
+        logging::log(logging::Level::Info, "read_resource", format!("called: {}",uri).as_str());
         if uri == "weather-data-uri" {
             Ok(ReadResourceResult {
                 contents: vec![ResourceContents::Text(TextResourceContents {
@@ -206,6 +289,7 @@ impl Guest for WeatherAPIRouter{
     }
 
     fn list_prompts() -> Vec<Prompt> {
+        logging::log(logging::Level::Info, "list_prompts", "all prompts returned");
         vec![
             Prompt {
                 name: "GetWeather".to_string(),
@@ -222,6 +306,7 @@ impl Guest for WeatherAPIRouter{
     }
 
     fn get_prompt(prompt_name: String) -> Result<GetPromptResult, PromptError> {
+        logging::log(logging::Level::Info, "get_prompt", format!("called: {}",prompt_name).as_str());
         if prompt_name == "GetWeather" {
             Ok(GetPromptResult {
                 description: Some("Prompt to fetch weather data".to_string()),
@@ -244,5 +329,3 @@ impl Guest for WeatherAPIRouter{
         }
     }
 }
-
-

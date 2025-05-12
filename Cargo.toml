@@ -9,12 +9,12 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.98"
-dotenv = "0.15.0"
+dotenvy = "0.15.7"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
 urlencoding = "2.1.3"
 wasi = "0.14.2"
-wit-bindgen = "0.41.0"
+wit-bindgen = "0.42.1"
 
 [lib]
 crate-type = ["cdylib"]
@@ -23,3 +23,4 @@ crate-type = ["cdylib"]
 wasmtime = "32.0.0"
 wasmtime-wasi = "32.0.0"
 wasmtime-wasi-http = "32.0.0"
+tracing = "0.1.41"
